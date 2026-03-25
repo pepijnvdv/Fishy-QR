@@ -21,6 +21,17 @@
       <p class="subtitle">Zeg een kleur en een visonderdeel om te schilderen!</p>
     </header>
 
+    <!-- Voice command guide — shown at top -->
+    <div class="voice-guide">
+      <p class="guide-title">🗣️ Spraakopdrachten</p>
+      <div class="guide-grid">
+        <span><b>Kleuren:</b> rood, oranje, geel, groen, blauw, paars, roze, wit, regenboog…</span>
+        <span><b>Onderdelen:</b> lijf, oog, rugvin, borstvin, buikvinnen, alles</span>
+        <span><b>Acties:</b> ongedaan, wissen</span>
+        <span><b>Patronen:</b> golven, stippen, ruiten, schalen, vlekken, verloop — combineer met kleur: "blauwe stippen"</span>
+      </div>
+    </div>
+
     <!-- Mic button -->
     <button class="mic-btn" id="btn-mic" title="Spraak">
       <span class="mic-icon">🎙️</span>
@@ -30,7 +41,7 @@
     <!-- Voice status -->
     <div class="voice-status" id="voiceStatus" aria-live="polite">
       <span class="voice-dot" id="voiceDot"></span>
-      <span id="voiceText">Zeg een kleur + visonderdeel — bijv. <em>“blauw lijf”</em> of <em>“rode staart”</em></span>
+      <span id="voiceText">Zeg een kleur + visonderdeel — bijv. <em>“blauw lijf”</em> of <em>“groene rugvin”</em></span>
     </div>
 
     <!-- Two-layer canvas -->
@@ -58,17 +69,6 @@
       <span class="send-icon">🌊</span>
       Stuur naar de Oceaan!
     </button>
-
-    <!-- Voice command reference -->
-    <div class="voice-guide">
-      <p class="guide-title">🗣️ Spraakopdrachten</p>
-      <div class="guide-grid">
-        <span><b>Kleuren:</b> rood, oranje, geel, groen, blauw, paars, roze, wit, regenboog…</span>
-        <span><b>Onderdelen:</b> lijf, staart, oog, rugvin, borstvin, buikvinnen, alles</span>
-        <span><b>Acties:</b> ongedaan, wissen</span>
-        <span><b>Patronen:</b> golven, stippen, ruiten, schalen, vlekken, verloop — combineer met kleur: "blauwe stippen"</span>
-      </div>
-    </div>
 
     <!-- Feedback toast -->
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

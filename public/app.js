@@ -485,7 +485,7 @@ function setupVoice() {
       micBtn.classList.add('listening');
       micLabel.textContent = 'Luisteren…';
       voiceDiv.classList.add('listening');
-      voiceText.innerHTML = '🎙️ Luisteren… probeer <em>"oranje lijf"</em> of <em>"blauwe staart"</em>';
+      voiceText.innerHTML = '🎙️ Luisteren… probeer <em>"oranje lijf"</em> of <em>"groene rugvin"</em>';
     };
 
     recognition.onresult = (e) => {
