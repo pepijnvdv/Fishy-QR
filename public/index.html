@@ -17,20 +17,20 @@
 
   <main class="app">
     <header class="header">
-      <h1>🐟 Color Your Fish</h1>
-      <p class="subtitle">Speak a colour and a fish part to paint!</p>
+      <h1>🐟 Kleur Jouw Vis</h1>
+      <p class="subtitle">Zeg een kleur en een visonderdeel om te schilderen!</p>
     </header>
 
     <!-- Mic button -->
-    <button class="mic-btn" id="btn-mic" title="Voice Paint">
+    <button class="mic-btn" id="btn-mic" title="Spraak">
       <span class="mic-icon">🎙️</span>
-      <span class="mic-label" id="micLabel">Tap to start listening</span>
+      <span class="mic-label" id="micLabel">Tik om te beginnen</span>
     </button>
 
     <!-- Voice status -->
     <div class="voice-status" id="voiceStatus" aria-live="polite">
       <span class="voice-dot" id="voiceDot"></span>
-      <span id="voiceText">Say a colour + fish part — e.g. <em>"blue body"</em> or <em>"red tail"</em></span>
+      <span id="voiceText">Zeg een kleur + visonderdeel — bijv. <em>“blauw lijf”</em> of <em>“rode staart”</em></span>
     </div>
 
     <!-- Two-layer canvas -->
@@ -49,23 +49,24 @@
 
     <!-- Utility buttons -->
     <div class="util-row">
-      <button class="util-btn" id="btn-undo" title="Undo">↩️ Undo</button>
-      <button class="util-btn" id="btn-clear" title="Clear">🗑️ Clear</button>
+      <button class="util-btn" id="btn-undo" title="Ongedaan">↩️ Ongedaan</button>
+      <button class="util-btn" id="btn-clear" title="Wissen">🗑️ Wissen</button>
     </div>
 
     <!-- Send button -->
     <button class="send-btn" id="sendBtn">
       <span class="send-icon">🌊</span>
-      Send to Ocean!
+      Stuur naar de Oceaan!
     </button>
 
     <!-- Voice command reference -->
     <div class="voice-guide">
-      <p class="guide-title">🗣️ Voice Commands</p>
+      <p class="guide-title">🗣️ Spraakopdrachten</p>
       <div class="guide-grid">
-        <span><b>Colors:</b> red, orange, yellow, green, blue, purple, pink, teal, white, rainbow…</span>
-        <span><b>Parts:</b> body, tail, top fin, side fin, eye, scales, everything…</span>
-        <span><b>Actions:</b> undo, clear</span>
+        <span><b>Kleuren:</b> rood, oranje, geel, groen, blauw, paars, roze, wit, regenboog…</span>
+        <span><b>Onderdelen:</b> lijf, staart, oog, rugvin, borstvin, buikvinnen, alles</span>
+        <span><b>Acties:</b> ongedaan, wissen</span>
+        <span><b>Patronen:</b> golven, stippen, ruiten, schalen, vlekken, verloop — combineer met kleur: "blauwe stippen"</span>
       </div>
     </div>
 

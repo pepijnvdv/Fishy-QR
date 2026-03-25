@@ -1,5 +1,5 @@
 /* =====================================================
-   Fish Coloring App – app.js  (voice-only, two-canvas)
+   Fish Coloring App – app.js  (voice-only, zone-fill)
    ===================================================== */
 
 // ── Two-canvas setup ─────────────────────────────────
@@ -34,16 +34,16 @@ COLORS.forEach(c => {
   swatch.style.background = c;
   swatch.setAttribute('aria-label', `Colour ${c}`);
   swatch.dataset.hex = c;
-  swatch.tabIndex = -1; // voice-only, not interactive
+  swatch.tabIndex = -1;
   palette.appendChild(swatch);
 });
 palette.firstChild.classList.add('active');
 
 function selectColor(hex) {
   currentColor = hex;
-  document.querySelectorAll('.swatch').forEach(s => {
-    s.classList.toggle('active', s.dataset.hex === hex);
-  });
+  document.querySelectorAll('.swatch').forEach(s =>
+    s.classList.toggle('active', s.dataset.hex === hex)
+  );
 }
 
 // ── Undo / Clear ──────────────────────────────────────
@@ -55,17 +55,24 @@ function undo() {
   if (!undoStack.length) return;
   paintCtx.putImageData(undoStack.pop(), 0, 0);
 }
+function drawFish() {
+  // White-filled fish as painting surface — strokes provide visual structure
+  paintCtx.clearRect(0, 0, W, H);
+  paintCtx.drawImage(fillImg, 0, 0, W, H);
+}
 function clearFish() {
   saveUndo();
-  paintCtx.clearRect(0, 0, W, H);
+  drawFish();
 }
 
 document.getElementById('btn-undo' ).addEventListener('click', undo);
 document.getElementById('btn-clear').addEventListener('click', clearFish);
 
-// ── SVG definitions (inline data URLs – no CORS taint) ──────────────────────
+const encode = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
 
-// FILL SVG: white-filled fish — used ONLY for building the mask
+// ══════════════════════════════════════════════════════
+// FILL SVG – white fills + dark strokes (drawn on paint canvas as the coloring surface)
+// ══════════════════════════════════════════════════════
 const FILL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
   <path d="M 180 250 C 200 170,320 110,460 140 C 560 160,620 200,640 250 C 620 300,560 340,460 360 C 320 390,200 330,180 250 Z" fill="white" stroke="#1a1a2e" stroke-width="4"/>
   <path d="M 140 250 C 110 200,60 160,30 130 C 70 170,80 220,80 250 C 80 280,70 330,30 370 C 60 340,110 300,140 250 Z" fill="white" stroke="#1a1a2e" stroke-width="4"/>
@@ -80,7 +87,9 @@ const FILL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" 
   <circle cx="589" cy="225" r="4" fill="white"/>
 </svg>`;
 
-// OUTLINE SVG: transparent fills — drawn permanently on the top overlay canvas
+// ══════════════════════════════════════════════════════
+// OUTLINE SVG – transparent fills, strokes only (permanent overlay)
+// ══════════════════════════════════════════════════════
 const OUTLINE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
   <path d="M 180 250 C 200 170,320 110,460 140 C 560 160,620 200,640 250 C 620 300,560 340,460 360 C 320 390,200 330,180 250 Z" fill="none" stroke="#1a1a2e" stroke-width="4"/>
   <path d="M 140 250 C 110 200,60 160,30 130 C 70 170,80 220,80 250 C 80 280,70 330,30 370 C 60 340,110 300,140 250 Z" fill="none" stroke="#1a1a2e" stroke-width="4"/>
@@ -104,60 +113,82 @@ const OUTLINE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 50
   <path d="M 558 190 C 530 225,532 275,558 310" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
 </svg>`;
 
-const encode = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+// ══════════════════════════════════════════════════════
+// ZONE SVG – each paintable section is a distinct solid color.
+// Zone colours:
+//   BODY (main oval)   → #ff0000  red
+//   TAIL               → #00ff00  green
+//   EYE                → #0000ff  blue
+//   DORSAL FIN (top)   → #00ffff  cyan
+//   PECTORAL FIN (mid) → #ff00ff  magenta
+//   BOTTOM FINS        → #ffff00  yellow
+// Painted in order: body first, fins on top (override body), tail+eye last.
+// ══════════════════════════════════════════════════════
+const ZONE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <!-- BODY zone (red) — main oval only -->
+  <path d="M 180 250 C 200 170,320 110,460 140 C 560 160,620 200,640 250 C 620 300,560 340,460 360 C 320 390,200 330,180 250 Z" fill="#ff0000"/>
 
-// ── Mask canvas ───────────────────────────────────────
-const maskCanvas = document.createElement('canvas');
-maskCanvas.width  = W;
-maskCanvas.height = H;
-const maskCtx  = maskCanvas.getContext('2d', { willReadFrequently: true });
-let   maskData = null;
+  <!-- DORSAL FIN zone (cyan) — closed arc on top -->
+  <path d="M 280 145 C 310 90,370 70,420 85 C 460 100,490 130,490 145 L 280 145 Z" fill="#00ffff"/>
 
-// ── Load images ───────────────────────────────────────
+  <!-- PECTORAL FIN zone (magenta) — middle leaf fin -->
+  <path d="M 380 230 C 400 270,420 310,400 340 C 370 320,350 290,360 250 Z" fill="#ff00ff"/>
+
+  <!-- BOTTOM FINS zone (yellow) — pelvic + anal fins -->
+  <path d="M 440 350 C 450 380,480 400,500 390 C 490 370,470 355,460 350 Z" fill="#ffff00"/>
+  <path d="M 340 355 C 340 385,360 400,380 395 C 375 375,355 360,350 355 Z" fill="#ffff00"/>
+
+  <!-- TAIL zone (green) — painted ON TOP of body -->
+  <path d="M 140 250 C 110 200,60 160,30 130 C 70 170,80 220,80 250 C 80 280,70 330,30 370 C 60 340,110 300,140 250 Z" fill="#00ff00"/>
+  <!-- Tail connector → tail zone -->
+  <path d="M 190 250 C 175 210,145 210,140 250 C 145 290,175 290,190 250 Z" fill="#00ff00"/>
+
+  <!-- EYE zone (blue) — always on top -->
+  <circle cx="580" cy="230" r="28" fill="#0000ff"/>
+</svg>`;
+
+// ── Offscreen canvases ────────────────────────────────
+// zoneCanvas: zone membership map (body/tail/eye)
+const zoneCanvas = document.createElement('canvas');
+zoneCanvas.width  = W; zoneCanvas.height = H;
+const zoneCtx    = zoneCanvas.getContext('2d', { willReadFrequently: true });
+let   zoneData   = null;
+
+// ── Image loading ─────────────────────────────────────
 const fillImg    = new Image();
 const outlineImg = new Image();
-let imagesReady  = 0;
+const zoneImg    = new Image();
+let   loadCount  = 0;
 
-function onImageReady() {
-  imagesReady++;
-  if (imagesReady === 2) init();
-}
+function onReady() {
+  loadCount++;
+  if (loadCount < 3) return; // wait for all 3 images
 
-fillImg.onload = () => {
-  // Build mask: red bg + fill SVG → red = outside fish
-  maskCtx.fillStyle = '#ff0000';
-  maskCtx.fillRect(0, 0, W, H);
-  maskCtx.drawImage(fillImg, 0, 0, W, H);
-  maskData = maskCtx.getImageData(0, 0, W, H).data;
-  onImageReady();
-};
+  // Zone canvas
+  zoneCtx.clearRect(0, 0, W, H);
+  zoneCtx.drawImage(zoneImg, 0, 0, W, H);
+  zoneData = zoneCtx.getImageData(0, 0, W, H).data;
 
-outlineImg.onload = () => {
-  // Draw outline permanently on top canvas
+  // Outline canvas (permanent top layer)
   outlineCtx.clearRect(0, 0, W, H);
   outlineCtx.drawImage(outlineImg, 0, 0, W, H);
-  onImageReady();
-};
 
-fillImg.src    = encode(FILL_SVG);
-outlineImg.src = encode(OUTLINE_SVG);
+  // Paint canvas (white-filled fish as starting state)
+  drawFish();
 
-function init() {
-  // Paint canvas starts clear — no fill, just transparent
-  paintCtx.clearRect(0, 0, W, H);
   document.getElementById('canvas-hint').classList.add('hidden');
   setupVoice();
 }
 
-// ── Mask helper ───────────────────────────────────────
-function isInsideFish(x, y) {
-  if (!maskData) return true;
-  if (x < 0 || x >= W || y < 0 || y >= H) return false;
-  const i = ((y * W) + x) * 4;
-  return !(maskData[i] > 200 && maskData[i+1] < 40 && maskData[i+2] < 40);
-}
+fillImg.onload    = onReady;
+outlineImg.onload = onReady;
+zoneImg.onload    = onReady;
 
-// ── Flood fill (on paintCanvas only) ─────────────────
+fillImg.src    = encode(FILL_SVG);
+outlineImg.src = encode(OUTLINE_SVG);
+zoneImg.src    = encode(ZONE_SVG);
+
+// ── Zone-aware flood fill ─────────────────────────────
 function hexToRgba(hex) {
   return [
     parseInt(hex.slice(1,3), 16),
@@ -167,57 +198,186 @@ function hexToRgba(hex) {
   ];
 }
 
-function colorMatch(data, idx, target, tol = 40) {
+function colorMatch(data, idx, target, tol = 20) {
   return Math.abs(data[idx  ] - target[0]) <= tol &&
          Math.abs(data[idx+1] - target[1]) <= tol &&
          Math.abs(data[idx+2] - target[2]) <= tol &&
          Math.abs(data[idx+3] - target[3]) <= tol;
 }
 
-function floodFill(startX, startY, fillColor) {
-  if (!isInsideFish(startX, startY)) return;
+// Returns the zone colour [r,g,b] at a pixel, or null if outside all zones
+function getZone(x, y) {
+  if (!zoneData || x < 0 || x >= W || y < 0 || y >= H) return null;
+  const pi = (y * W + x) * 4;
+  if (zoneData[pi + 3] < 10) return null; // transparent = no zone
+  return [zoneData[pi], zoneData[pi+1], zoneData[pi+2]];
+}
+
+function sameZone(a, b) {
+  if (!a || !b) return false;
+  return Math.abs(a[0]-b[0]) < 30 && Math.abs(a[1]-b[1]) < 30 && Math.abs(a[2]-b[2]) < 30;
+}
+
+// Paint every pixel in the zone, regardless of connectivity.
+function fillZone(seedX, seedY, fillColor) {
+  const targetZone = getZone(seedX, seedY);
+  if (!targetZone) return;
 
   const imgData = paintCtx.getImageData(0, 0, W, H);
   const data    = imgData.data;
-  const si      = (startY * W + startX) * 4;
-  const target  = [data[si], data[si+1], data[si+2], data[si+3]];
   const fill    = hexToRgba(fillColor);
 
-  if (colorMatch(target, 0, fill, 8)) return;
-
-  // For transparent start pixel (unpainted area), target alpha = 0
-  // We still want to fill — just match any transparent pixel
-  const fillTransparent = target[3] < 10;
-
-  const stack   = [[startX, startY]];
-  const visited = new Uint8Array(W * H);
-
-  while (stack.length) {
-    const [x, y] = stack.pop();
-    if (x < 0 || x >= W || y < 0 || y >= H) continue;
-    const i  = y * W + x;
-    if (visited[i]) continue;
-
-    // Stop at pixels outside the fish mask
-    if (!isInsideFish(x, y)) continue;
-
-    const pi = i * 4;
-    if (fillTransparent) {
-      // Filling an empty (transparent) region — stop at any opaque pixel
-      if (data[pi + 3] >= 10) continue;
-    } else {
-      if (!colorMatch(data, pi, target)) continue;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!sameZone(getZone(x, y), targetZone)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi + 3] < 10) continue;
+      data[pi]   = fill[0];
+      data[pi+1] = fill[1];
+      data[pi+2] = fill[2];
+      data[pi+3] = 255;
     }
-
-    visited[i]   = 1;
-    data[pi]     = fill[0];
-    data[pi+1]   = fill[1];
-    data[pi+2]   = fill[2];
-    data[pi+3]   = 255;
-    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
   }
+  paintCtx.putImageData(imgData, 0, 0);
+}
 
-  // NO SVG redraw here — outline lives on outlineCanvas
+// Wavy sine-wave stripe pattern painted across all fish zones.
+// color1 = stripe color (current voice color), color2 = alternating stripe color.
+function paintWavyPattern(color1, color2) {
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data    = imgData.data;
+  const fill1   = hexToRgba(color1);
+  const fill2   = hexToRgba(color2);
+  const STRIPE  = 28; // stripe width in pixels
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue; // outside fish
+      const pi = (y * W + x) * 4;
+      if (data[pi + 3] < 10) continue;
+      // Sine wave shifts the stripe boundary horizontally
+      const wave  = Math.sin(y * 0.12) * 22;
+      const band  = Math.floor((x + wave) / STRIPE);
+      const fill  = band % 2 === 0 ? fill1 : fill2;
+      data[pi]   = fill[0];
+      data[pi+1] = fill[1];
+      data[pi+2] = fill[2];
+      data[pi+3] = 255;
+    }
+  }
+  paintCtx.putImageData(imgData, 0, 0);
+}
+
+// ── STIPPEN – polka dots ──────────────────────────────
+function paintDots(color1, color2) {
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+  const f1 = hexToRgba(color1), f2 = hexToRgba(color2);
+  const R = 18, GAP = 44;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi+3] < 10) continue;
+      const row = Math.floor(y / GAP);
+      const ox  = row % 2 === 0 ? 0 : GAP / 2;
+      const cx  = Math.floor((x + ox) / GAP) * GAP - ox + GAP / 2;
+      const cy  = row * GAP + GAP / 2;
+      const f   = Math.hypot(x - cx, y - cy) < R ? f1 : f2;
+      data[pi]=f[0]; data[pi+1]=f[1]; data[pi+2]=f[2]; data[pi+3]=255;
+    }
+  }
+  paintCtx.putImageData(imgData, 0, 0);
+}
+
+// ── RUITEN – checkerboard ─────────────────────────────
+function paintChecker(color1, color2) {
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+  const f1 = hexToRgba(color1), f2 = hexToRgba(color2);
+  const S = 36;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi+3] < 10) continue;
+      const f = (Math.floor(x/S) + Math.floor(y/S)) % 2 === 0 ? f1 : f2;
+      data[pi]=f[0]; data[pi+1]=f[1]; data[pi+2]=f[2]; data[pi+3]=255;
+    }
+  }
+  paintCtx.putImageData(imgData, 0, 0);
+}
+
+// ── SCHALEN – fish-scale arc pattern ─────────────────
+function paintScales(color1, color2) {
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+  const f1 = hexToRgba(color1), f2 = hexToRgba(color2);
+  const R = 30, CX = 50, CY = 26;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi+3] < 10) continue;
+      const row = Math.floor(y / CY);
+      const ox  = row % 2 === 0 ? 0 : CX / 2;
+      const scx = Math.floor((x + ox) / CX) * CX - ox + CX / 2;
+      const scy = row * CY;
+      const f   = Math.hypot(x - scx, y - scy) < R ? f1 : f2;
+      data[pi]=f[0]; data[pi+1]=f[1]; data[pi+2]=f[2]; data[pi+3]=255;
+    }
+  }
+  paintCtx.putImageData(imgData, 0, 0);
+}
+
+// ── VLEKKEN – organic Voronoi blotches ───────────────
+function paintBlotches(color1, color2) {
+  const rng = s => { const v = Math.sin(s) * 43758.5453; return v - Math.floor(v); };
+  const COLS = 8, ROWS = 5;
+  const seeds = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      seeds.push({
+        x: (c / COLS + rng(r*100+c*7+1) / COLS) * W,
+        y: (r / ROWS + rng(r*100+c*7+3) / ROWS) * H,
+        id: rng(r*100+c*7+9) > 0.5 ? 0 : 1,
+      });
+    }
+  }
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+  const f1 = hexToRgba(color1), f2 = hexToRgba(color2);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi+3] < 10) continue;
+      let minD = Infinity, id = 0;
+      for (const s of seeds) { const d = Math.hypot(x-s.x,y-s.y); if (d<minD){minD=d;id=s.id;} }
+      const f = id === 0 ? f1 : f2;
+      data[pi]=f[0]; data[pi+1]=f[1]; data[pi+2]=f[2]; data[pi+3]=255;
+    }
+  }
+  paintCtx.putImageData(imgData, 0, 0);
+}
+
+// ── VERLOOP – smooth colour gradient left→right ───────
+function paintGradient(color1, color2) {
+  const imgData = paintCtx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+  const f1 = hexToRgba(color1), f2 = hexToRgba(color2);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!getZone(x, y)) continue;
+      const pi = (y * W + x) * 4;
+      if (data[pi+3] < 10) continue;
+      const t = x / W;
+      data[pi]  =Math.round(f1[0]+(f2[0]-f1[0])*t);
+      data[pi+1]=Math.round(f1[1]+(f2[1]-f1[1])*t);
+      data[pi+2]=Math.round(f1[2]+(f2[2]-f1[2])*t);
+      data[pi+3]=255;
+    }
+  }
   paintCtx.putImageData(imgData, 0, 0);
 }
 
@@ -236,10 +396,8 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   btn.textContent = '⏳ Sending…';
 
   try {
-    // Composite: paint layer + outline on top → single PNG
     const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width  = W;
-    tmpCanvas.height = H;
+    tmpCanvas.width  = W; tmpCanvas.height = H;
     const tmp = tmpCanvas.getContext('2d');
     tmp.drawImage(paintCanvas,   0, 0);
     tmp.drawImage(outlineCanvas, 0, 0);
@@ -278,48 +436,46 @@ function setupVoice() {
   if (!SpeechRecognition) {
     micBtn.style.opacity = '0.4';
     micBtn.style.cursor  = 'not-allowed';
-    micLabel.textContent = 'Voice not supported (use Chrome/Edge)';
+    micLabel.textContent = 'Spraakherkenning niet ondersteund (gebruik Chrome/Edge)';
     return;
   }
 
-  // ── Colour vocabulary ──────────────────────────────
+  // ── Kleurenschema (Nederlands) ─────────────────────────
   const COLOR_MAP = {
-    red:       '#f44336', crimson:   '#f44336', scarlet:  '#f44336',
-    orange:    '#ff9800', amber:     '#ff9800', coral:    '#ff6b35',
-    yellow:    '#ffd600', gold:      '#ffd600', lime:     '#a5d6a7',
-    green:     '#4caf50', emerald:   '#4caf50', forest:   '#4caf50',
-    teal:      '#00bcd4', cyan:      '#00bcd4', aqua:     '#4db6ac', turquoise: '#4db6ac',
-    blue:      '#2196f3', navy:      '#0a2342', sky:      '#90caf9', cobalt:    '#2196f3',
-    purple:    '#9c27b0', violet:    '#9c27b0', lavender: '#ce93d8',
-    pink:      '#e91e63', rose:      '#e91e63', magenta:  '#e91e63', salmon:    '#ff8a65',
-    white:     '#ffffff', ivory:     '#ffffff',
-    grey:      '#78909c', gray:      '#78909c', silver:   '#78909c',
-    black:     '#1a1a2e',
-    brown:     '#795548',
-    rainbow:   'rainbow',
+    rood:        '#f44336', karmijn:     '#f44336', scharlaken:  '#f44336',
+    oranje:      '#ff9800', amber:       '#ff9800', koraal:      '#ff6b35',
+    geel:        '#ffd600', goud:        '#ffd600', limoen:      '#a5d6a7',
+    groen:       '#4caf50', smaragd:     '#4caf50', bosgroen:    '#4caf50',
+    turkoois:    '#00bcd4', cyaan:       '#00bcd4', aqua:        '#4db6ac', turquoise:   '#4db6ac',
+    blauw:       '#2196f3', donkerblauw: '#0a2342', hemelsblauw: '#90caf9', kobalt:      '#2196f3',
+    paars:       '#9c27b0', violet:      '#9c27b0', lavendel:    '#ce93d8',
+    roze:        '#e91e63', magenta:     '#e91e63', zalm:        '#ff8a65',
+    wit:         '#ffffff', ivoor:       '#ffffff',
+    grijs:       '#78909c', zilver:      '#78909c',
+    zwart:       '#1a1a2e',
+    bruin:       '#795548',
+    regenboog:   'rainbow',
   };
 
-  // ── Fish region vocabulary ──────────────────────────
+  // ── Visonderdelen (Nederlands) ──────────────────────
+  // Seed coords must land inside the correct zone color on the zone canvas.
   const REGION_MAP = [
-    { words: ['body','main','belly','torso','side','middle','center','centre'], x: 430, y: 250 },
-    { words: ['tail','caudal','rear'],                                          x:  80, y: 250 },
-    { words: ['top fin','dorsal fin','dorsal','top','back'],                    x: 380, y: 108 },
-    { words: ['side fin','pectoral fin','pectoral','chest'],                    x: 395, y: 285 },
-    { words: ['bottom fin','pelvic fin','pelvic','lower fin'],                  x: 470, y: 375 },
-    { words: ['small fin','anal fin','anal'],                                   x: 355, y: 375 },
-    { words: ['eye','pupil','iris'],                                            x: 583, y: 230 },
-    { words: ['scales','scale','skin'],                                         x: 430, y: 220 },
-    { words: ['everything','all','whole','entire','fish','all parts'],          x: null, y: null },
+    { words: ['lijf','romp','lichaam','midden','centrum'],                                   x: 430, y: 250 },
+    { words: ['staart','achterkant'],                                                         x:  55, y: 195 },
+    { words: ['oog','pupil','iris'],                                                           x: 580, y: 230 },
+    { words: ['rugvin','bovenste vin','topvin','bovenfin','rugfin'],                          x: 390, y: 105 },
+    { words: ['borstvin','zijvin','middelste vin','middelste fin'],                           x: 385, y: 290 },
+    { words: ['buikvinnen','onderste vinnen','kleine vinnen','buikvin','onderfin','onderin'], x: 465, y: 373 },
+    { words: ['alles','geheel','vis','heel'],                                                  x: null, y: null },
   ];
 
   const RAINBOW = ['#f44336','#ff9800','#ffd600','#4caf50','#00bcd4','#2196f3','#9c27b0'];
 
-  let recognition;
-  let listening = false;
+  let recognition, listening = false;
 
   function startListening() {
     recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
+    recognition.lang = 'nl-NL';
     recognition.interimResults  = true;
     recognition.continuous      = true;
     recognition.maxAlternatives = 1;
@@ -327,32 +483,21 @@ function setupVoice() {
     recognition.onstart = () => {
       listening = true;
       micBtn.classList.add('listening');
-      micLabel.textContent = 'Listening… say a colour + part';
+      micLabel.textContent = 'Luisteren…';
       voiceDiv.classList.add('listening');
-      voiceText.innerHTML = '🎙️ Listening — try <em>"orange body"</em> or <em>"blue tail"</em>';
+      voiceText.innerHTML = '🎙️ Luisteren… probeer <em>"oranje lijf"</em> of <em>"blauwe staart"</em>';
     };
 
     recognition.onresult = (e) => {
-      const interim = Array.from(e.results)
-        .map(r => r[0].transcript).join(' ').toLowerCase().trim();
+      const interim = Array.from(e.results).map(r => r[0].transcript).join(' ').toLowerCase().trim();
       voiceText.textContent = `"${interim}"`;
-
       for (const result of e.results) {
-        if (result.isFinal) {
-          handleVoiceCommand(result[0].transcript.toLowerCase().trim());
-        }
+        if (result.isFinal) handleVoiceCommand(result[0].transcript.toLowerCase().trim());
       }
     };
 
-    recognition.onerror = (e) => {
-      if (e.error === 'no-speech') return;
-      voiceText.textContent = `⚠️ ${e.error}`;
-    };
-
-    recognition.onend = () => {
-      if (listening) recognition.start(); // keep alive
-    };
-
+    recognition.onerror = e => { if (e.error !== 'no-speech') voiceText.textContent = `⚠️ ${e.error}`; };
+    recognition.onend   = () => { if (listening) recognition.start(); };
     recognition.start();
   }
 
@@ -360,27 +505,43 @@ function setupVoice() {
     listening = false;
     if (recognition) recognition.stop();
     micBtn.classList.remove('listening');
-    micLabel.textContent = 'Tap to start listening';
+    micLabel.textContent = 'Tik om te beginnen';
     voiceDiv.classList.remove('listening');
-    voiceText.innerHTML = 'Voice off — tap 🎙️ to start again.';
+    voiceText.innerHTML = 'Spraak uit — tik 🎙️ om opnieuw te beginnen.';
   }
 
-  micBtn.addEventListener('click', () => {
-    if (listening) stopListening();
-    else startListening();
-  });
+  micBtn.addEventListener('click', () => listening ? stopListening() : startListening());
 
-  // ── Command parser ─────────────────────────────────
   function handleVoiceCommand(text) {
-    if (/\bclear\b|\breset\b|\bstart over\b/.test(text)) {
+    if (/\bwissen\b|\bopnieuw\b|\bleegmaken\b/.test(text)) {
       clearFish();
-      voiceText.textContent = '🗑️ Cleared!';
-      showToast('🗑️ Canvas cleared');
+      voiceText.textContent = '🗑️ Gewist!';
+      showToast('🗑️ Canvas gewist');
       return;
     }
-    if (/\bundo\b/.test(text)) {
-      undo();
-      voiceText.textContent = '↩️ Undone!';
+    if (/\bongedaan\b|\bterugdraaien\b/.test(text)) { undo(); voiceText.textContent = '↩️ Teruggedraaid!'; return; }
+
+    // ── Patronen ────────────────────────────────────────
+    const PATTERN_MAP = [
+      { re: /\bstippen\b|\bstippen\b|\bbolletjes\b/, fn: paintDots,     label: '⚪ Stippen' },
+      { re: /\bruiten\b|\bblokjes\b|\bdambord\b/,     fn: paintChecker,  label: '◆ Ruiten' },
+      { re: /\bschalen\b|\bschubben\b/,               fn: paintScales,   label: '🐠 Schalen' },
+      { re: /\bvlekken\b|\bvlekjes\b/,                fn: paintBlotches, label: '🐆 Vlekken' },
+      { re: /\bverloop\b|\bgradient\b/,               fn: paintGradient, label: '🌈 Verloop' },
+      { re: /\bgolven\b|\bgolvend\b|\bstrepen\b|\bpatroon\b/, fn: paintWavyPattern, label: '🌊 Golven' },
+    ];
+
+    const matchedPattern = PATTERN_MAP.find(p => p.re.test(text));
+    if (matchedPattern) {
+      saveUndo();
+      let c1 = currentColor, c2 = '#ffffff';
+      for (const [word, hex] of Object.entries(COLOR_MAP)) {
+        if (text.includes(word) && hex !== 'rainbow') { c1 = hex; selectColor(c1); break; }
+      }
+      if (text.includes('regenboog')) { c1 = '#2196f3'; c2 = '#ff9800'; }
+      matchedPattern.fn(c1, c2);
+      voiceText.textContent = `${matchedPattern.label} geschilderd!`;
+      showToast(`${matchedPattern.label} klaar!`);
       return;
     }
 
@@ -390,7 +551,7 @@ function setupVoice() {
       if (text.includes(word)) { foundColor = hex; colorName = word; break; }
     }
 
-    // Find region (check multi-word phrases first, then single words)
+    // Find region (longest match first)
     let foundRegion = null, regionName = null;
     outer:
     for (const region of REGION_MAP) {
@@ -400,42 +561,36 @@ function setupVoice() {
     }
 
     if (!foundColor && !foundRegion) {
-      voiceText.textContent = `❓ Didn't catch that — try "blue body" or "red tail"`;
+      voiceText.textContent = `❓ Niet begrepen — probeer "blauw lijf" of "rode staart"`;
       return;
     }
 
-    // Select colour in palette
     if (foundColor && foundColor !== 'rainbow') selectColor(foundColor);
 
     if (foundRegion) {
       saveUndo();
-
       if (foundRegion.x === null) {
-        // Fill ALL regions
-        REGION_MAP.filter(r => r.x !== null).forEach((r, idx) => {
-          const clr = foundColor === 'rainbow'
-            ? RAINBOW[idx % RAINBOW.length]
-            : (foundColor || currentColor);
+        // Fill ALL zones separately
+        const seeds = REGION_MAP.filter(r => r.x !== null);
+        seeds.forEach((r, idx) => {
+          const clr = foundColor === 'rainbow' ? RAINBOW[idx % RAINBOW.length] : (foundColor || currentColor);
           if (foundColor === 'rainbow') selectColor(clr);
-          floodFill(r.x, r.y, clr);
+          fillZone(r.x, r.y, clr);
         });
       } else {
         const clr = foundColor === 'rainbow'
           ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)]
           : (foundColor || currentColor);
         if (foundColor === 'rainbow') selectColor(clr);
-        floodFill(foundRegion.x, foundRegion.y, clr);
+        fillZone(foundRegion.x, foundRegion.y, clr);
       }
 
-      const msg = foundColor
-        ? `✨ Painted ${regionName} ${colorName}!`
-        : `✨ Painted ${regionName}!`;
+      const msg = foundColor ? `✨ ${regionName} geschilderd in ${colorName}!` : `✨ ${regionName} geschilderd!`;
       voiceText.textContent = msg;
       showToast(msg);
 
     } else {
-      // Only colour, no region
-      voiceText.innerHTML = `🎨 Colour set to <em>${colorName}</em> — now say a fish part!`;
+      voiceText.innerHTML = `🎨 Kleur ingesteld op <em>${colorName}</em> — zeg nu een visonderdeel!`;
     }
   }
 }
