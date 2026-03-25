@@ -1,0 +1,6 @@
+node_modules/
+public/qrcode.png
+*.log
+out.txt
+err.txt
+.env

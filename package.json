@@ -1,0 +1,15 @@
+{
+  "name": "fish-coloring-server",
+  "version": "1.0.0",
+  "description": "QR code fish coloring server for Unity integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "localtunnel": "^2.0.2",
+    "qrcode": "^1.5.3",
+    "ws": "^8.16.0"
+  }
+}

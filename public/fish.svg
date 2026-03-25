@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" id="fish-svg">
+  <!-- Body -->
+  <path d="M 180 250 
+           C 200 170, 320 110, 460 140 
+           C 560 160, 620 200, 640 250 
+           C 620 300, 560 340, 460 360 
+           C 320 390, 200 330, 180 250 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="4" id="body"/>
+
+  <!-- Tail fin -->
+  <path d="M 140 250 
+           C 110 200, 60 160, 30 130 
+           C 70 170, 80 220, 80 250
+           C 80 280, 70 330, 30 370
+           C 60 340, 110 300, 140 250 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="4" id="tail"/>
+
+  <!-- Tail connector -->
+  <path d="M 180 250 C 170 230, 145 230, 140 250 C 145 270, 170 270, 180 250 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="3" id="tail-connector"/>
+
+  <!-- Dorsal fin (top) -->
+  <path d="M 280 145 
+           C 310 90, 370 70, 420 85 
+           C 460 100, 490 130, 490 145" 
+        fill="white" stroke="#1a1a2e" stroke-width="4" stroke-linejoin="round" id="dorsal-fin"/>
+
+  <!-- Pectoral fin (side) -->
+  <path d="M 380 230 
+           C 400 270, 420 310, 400 340 
+           C 370 320, 350 290, 360 250 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="3" id="pectoral-fin"/>
+
+  <!-- Pelvic fin (bottom front) -->
+  <path d="M 440 350 
+           C 450 380, 480 400, 500 390 
+           C 490 370, 470 355, 460 350 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="3" id="pelvic-fin"/>
+
+  <!-- Anal fin (bottom rear) -->
+  <path d="M 340 355 
+           C 340 385, 360 400, 380 395 
+           C 375 375, 355 360, 350 355 Z" 
+        fill="white" stroke="#1a1a2e" stroke-width="3" id="anal-fin"/>
+
+  <!-- Eye circle -->
+  <circle cx="580" cy="230" r="30" fill="white" stroke="#1a1a2e" stroke-width="4" id="eye-white"/>
+  <circle cx="585" cy="230" r="18" fill="white" stroke="#1a1a2e" stroke-width="3" id="iris"/>
+  <circle cx="585" cy="230" r="10" fill="#4a7c59" id="pupil"/>
+  <circle cx="589" cy="225" r="4" fill="white" id="eye-gleam"/>
+
+  <!-- Mouth -->
+  <path d="M 640 265 C 650 275, 648 285, 638 288" 
+        fill="none" stroke="#1a1a2e" stroke-width="3" stroke-linecap="round" id="mouth"/>
+
+  <!-- Scale lines -->
+  <path d="M 420 160 C 400 180, 395 210, 400 240" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.5" id="scale1"/>
+  <path d="M 370 155 C 350 175, 345 210, 350 240" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.5" id="scale2"/>
+  <path d="M 470 165 C 455 185, 450 215, 455 245" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.5" id="scale3"/>
+  <path d="M 320 165 C 302 185, 298 215, 303 245" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.5" id="scale4"/>
+  <path d="M 510 185 C 498 205, 496 230, 500 255" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.5" id="scale5"/>
+
+  <!-- Lateral line -->
+  <path d="M 220 250 C 320 245, 450 248, 570 252" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.4" stroke-dasharray="8,6" id="lateral-line"/>
+
+  <!-- Gill -->
+  <path d="M 560 185 C 545 220, 547 280, 560 315" 
+        fill="none" stroke="#1a1a2e" stroke-width="3" stroke-linecap="round" id="gill"/>
+
+  <!-- Gill shading arc -->
+  <path d="M 558 190 C 530 225, 532 275, 558 310" 
+        fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" opacity="0.3" id="gill2"/>
+</svg>
