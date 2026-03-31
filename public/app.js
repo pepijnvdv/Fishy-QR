@@ -436,161 +436,243 @@ function setupVoice() {
   if (!SpeechRecognition) {
     micBtn.style.opacity = '0.4';
     micBtn.style.cursor  = 'not-allowed';
-    micLabel.textContent = 'Spraakherkenning niet ondersteund (gebruik Chrome/Edge)';
+    micLabel.textContent = 'Niet ondersteund – gebruik Chrome/Edge';
     return;
   }
 
-  // ── Kleurenschema (Nederlands) ─────────────────────────
+  // ── Levenshtein fuzzy distance ───────────────────────
+  // Returns 0 for identical strings, higher = more different.
+  // Normalized: divide by max word length → 0..1 score.
+  function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    const dp = [];
+    for (let i = 0; i <= m; i++) { dp[i] = [i]; }
+    for (let j = 0; j <= n; j++) { dp[0][j] = j; }
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (a[i-1] === b[j-1]) dp[i][j] = dp[i-1][j-1];
+        else dp[i][j] = 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  // Best fuzzy match from a candidate list. Returns null if no match within threshold.
+  function bestFuzzy(word, candidates, threshold = 0.40) {
+    let best = null, bestScore = Infinity;
+    for (const c of candidates) {
+      const score = levenshtein(word, c) / Math.max(word.length, c.length, 1);
+      if (score < bestScore) { bestScore = score; best = c; }
+    }
+    return bestScore <= threshold ? best : null;
+  }
+
+  // ── Vocabulary ───────────────────────────────────────
+  // Colours – include inflected forms (rode, blauwe, groene…) to catch browser inflections
   const COLOR_MAP = {
-    rood:        '#f44336', karmijn:     '#f44336', scharlaken:  '#f44336',
-    oranje:      '#ff9800', amber:       '#ff9800', koraal:      '#ff6b35',
-    geel:        '#ffd600', goud:        '#ffd600', limoen:      '#a5d6a7',
-    groen:       '#4caf50', smaragd:     '#4caf50', bosgroen:    '#4caf50',
-    turkoois:    '#00bcd4', cyaan:       '#00bcd4', aqua:        '#4db6ac', turquoise:   '#4db6ac',
-    blauw:       '#2196f3', donkerblauw: '#0a2342', hemelsblauw: '#90caf9', kobalt:      '#2196f3',
-    paars:       '#9c27b0', violet:      '#9c27b0', lavendel:    '#ce93d8',
-    roze:        '#e91e63', magenta:     '#e91e63', zalm:        '#ff8a65',
-    wit:         '#ffffff', ivoor:       '#ffffff',
-    grijs:       '#78909c', zilver:      '#78909c',
-    zwart:       '#1a1a2e',
-    bruin:       '#795548',
-    regenboog:   'rainbow',
+    rood: '#f44336', rode: '#f44336', rooie: '#f44336', root: '#f44336',
+    oranje: '#ff9800', oranja: '#ff9800',
+    geel: '#ffd600', gele: '#ffd600', goud: '#ffd600', gouden: '#ffd600',
+    groen: '#4caf50', groene: '#4caf50', grune: '#4caf50',
+    turkoois: '#00bcd4', turquoise: '#00bcd4', cyaan: '#00bcd4', aqua: '#4db6ac',
+    blauw: '#2196f3', blauwe: '#2196f3', blaauwe: '#2196f3', blouw: '#2196f3',
+    paars: '#9c27b0', paarze: '#9c27b0', paarze: '#9c27b0', violet: '#9c27b0',
+    roze: '#e91e63', roze: '#e91e63', pink: '#e91e63',
+    wit: '#ffffff', witte: '#ffffff', ivoor: '#ffffff',
+    zwart: '#1a1a2e', zwarte: '#1a1a2e',
+    grijs: '#78909c', grijze: '#78909c', grize: '#78909c', zilver: '#78909c',
+    bruin: '#795548', bruine: '#795548',
+    regenboog: 'rainbow', kleurrijk: 'rainbow',
   };
 
-  // ── Visonderdelen (Nederlands) ──────────────────────
-  // Seed coords must land inside the correct zone color on the zone canvas.
+  // Regions – seed coords land inside the zone on the hidden zone canvas
   const REGION_MAP = [
-    { words: ['lijf','romp','lichaam','midden','centrum'],                                   x: 430, y: 250 },
-    { words: ['staart','achterkant'],                                                         x:  55, y: 195 },
-    { words: ['oog','pupil','iris'],                                                           x: 580, y: 230 },
-    { words: ['rugvin','bovenste vin','topvin','bovenfin','rugfin'],                          x: 390, y: 105 },
-    { words: ['borstvin','zijvin','middelste vin','middelste fin'],                           x: 385, y: 290 },
-    { words: ['buikvinnen','onderste vinnen','kleine vinnen','buikvin','onderfin','onderin'], x: 465, y: 373 },
-    { words: ['alles','geheel','vis','heel'],                                                  x: null, y: null },
+    { words: ['lichaam','lijf','romp','midden','centrum','body'], x: 430, y: 250 },
+    { words: ['staart','achterkant','achterin','tail'],            x:  55, y: 195 },
+    { words: ['oog','pupil','iris','ogen','eye'],                  x: 580, y: 230 },
+    { words: ['rugvin','rugfin','bovenvin','topvin','bovenfin','dorsal','rug'], x: 390, y: 105 },
+    { words: ['borstvin','borstfin','zijvin','middelvin','borst'], x: 385, y: 290 },
+    { words: ['buikvinnen','buikvin','ondervin','ondervinnen','onderfin','buik','onderste'], x: 465, y: 373 },
+    { words: ['alles','geheel','heel','everything','hele'],         x: null, y: null },
   ];
 
+  // Patterns
+  const PATTERN_MAP = [
+    { words: ['stippen','stip','bolletjes','dots'],           fn: paintDots,        label: '⚪ Stippen' },
+    { words: ['ruiten','ruit','blokjes','dambord','checker'], fn: paintChecker,     label: '◆ Ruiten' },
+    { words: ['schalen','schubben','schaal','scales'],        fn: paintScales,      label: '🐠 Schalen' },
+    { words: ['vlekken','vlek','vlekjes','spots'],            fn: paintBlotches,    label: '🐆 Vlekken' },
+    { words: ['verloop','gradient','fade','gradiënt'],        fn: paintGradient,    label: '🌈 Verloop' },
+    { words: ['golven','golvend','strepen','patroon','streep','waves'], fn: paintWavyPattern, label: '🌊 Golven' },
+  ];
   const RAINBOW = ['#f44336','#ff9800','#ffd600','#4caf50','#00bcd4','#2196f3','#9c27b0'];
 
-  let recognition, listening = false;
+  // Flat lookup maps for fuzzy scanning
+  const colorWords   = Object.keys(COLOR_MAP);
+  const regionWordToRegion = {};
+  REGION_MAP.forEach(r => r.words.forEach(w => { regionWordToRegion[w] = r; }));
+  const regionWords  = Object.keys(regionWordToRegion);
+  const patternWordToPat = {};
+  PATTERN_MAP.forEach(p => p.words.forEach(w => { patternWordToPat[w] = p; }));
+  const patternWords = Object.keys(patternWordToPat);
+  const clearWords   = ['wissen','leegmaken','opnieuw','schoon','clear','reset'];
+  const undoWords    = ['ongedaan','terugdraaien','terug','undo'];
 
-  function startListening() {
-    recognition = new SpeechRecognition();
-    recognition.lang = 'nl-NL';
-    recognition.interimResults  = true;
-    recognition.continuous      = true;
-    recognition.maxAlternatives = 1;
+  // ── Smart parser ─────────────────────────────────────
+  // Splits text into words and fuzzy-matches each against the full vocabulary.
+  function parseCommand(text) {
+    const words = text.toLowerCase().replace(/[.,!?]/g, '').split(/\s+/).filter(Boolean);
 
-    recognition.onstart = () => {
-      listening = true;
-      micBtn.classList.add('listening');
-      micLabel.textContent = 'Luisteren…';
-      voiceDiv.classList.add('listening');
-      voiceText.innerHTML = '🎙️ Luisteren… probeer <em>"oranje lijf"</em> of <em>"groene rugvin"</em>';
-    };
+    let foundColor = null, colorName = null;
+    let foundRegion = null, regionName = null;
+    let foundPattern = null;
 
-    recognition.onresult = (e) => {
-      const interim = Array.from(e.results).map(r => r[0].transcript).join(' ').toLowerCase().trim();
-      voiceText.textContent = `"${interim}"`;
-      for (const result of e.results) {
-        if (result.isFinal) handleVoiceCommand(result[0].transcript.toLowerCase().trim());
+    for (const word of words) {
+      // Actions first
+      if (!foundColor && !foundRegion && !foundPattern) {
+        if (bestFuzzy(word, clearWords, 0.30)) return { action: 'clear' };
+        if (bestFuzzy(word, undoWords,  0.30)) return { action: 'undo' };
       }
-    };
-
-    recognition.onerror = e => { if (e.error !== 'no-speech') voiceText.textContent = `⚠️ ${e.error}`; };
-    recognition.onend   = () => { if (listening) recognition.start(); };
-    recognition.start();
+      // Color
+      if (!foundColor) {
+        const m = bestFuzzy(word, colorWords, 0.38);
+        if (m) { foundColor = COLOR_MAP[m]; colorName = m; }
+      }
+      // Region
+      if (!foundRegion) {
+        const m = bestFuzzy(word, regionWords, 0.38);
+        if (m) { foundRegion = regionWordToRegion[m]; regionName = m; }
+      }
+      // Pattern
+      if (!foundPattern) {
+        const m = bestFuzzy(word, patternWords, 0.38);
+        if (m) { foundPattern = patternWordToPat[m]; }
+      }
+    }
+    return { action: 'paint', color: foundColor, colorName, region: foundRegion, regionName, pattern: foundPattern };
   }
 
-  function stopListening() {
-    listening = false;
-    if (recognition) recognition.stop();
-    micBtn.classList.remove('listening');
-    micLabel.textContent = 'Tik om te beginnen';
-    voiceDiv.classList.remove('listening');
-    voiceText.innerHTML = 'Spraak uit — tik 🎙️ om opnieuw te beginnen.';
+  // Try up to 3 browser alternatives, return the first one that parses usefully
+  function tryAlternatives(result) {
+    for (let i = 0; i < result.length; i++) {
+      const transcript = result[i].transcript.toLowerCase().trim();
+      const cmd = parseCommand(transcript);
+      const useful = cmd.action !== 'paint' || cmd.color || cmd.region || cmd.pattern;
+      if (useful) return { cmd, transcript };
+    }
+    return { cmd: parseCommand(result[0].transcript.toLowerCase().trim()), transcript: result[0].transcript };
   }
 
-  micBtn.addEventListener('click', () => listening ? stopListening() : startListening());
-
-  function handleVoiceCommand(text) {
-    if (/\bwissen\b|\bopnieuw\b|\bleegmaken\b/.test(text)) {
+  // ── Execute parsed command ───────────────────────────
+  function executeCommand(cmd, rawText) {
+    if (cmd.action === 'clear') {
       clearFish();
       voiceText.textContent = '🗑️ Gewist!';
       showToast('🗑️ Canvas gewist');
       return;
     }
-    if (/\bongedaan\b|\bterugdraaien\b/.test(text)) { undo(); voiceText.textContent = '↩️ Teruggedraaid!'; return; }
-
-    // ── Patronen ────────────────────────────────────────
-    const PATTERN_MAP = [
-      { re: /\bstippen\b|\bstippen\b|\bbolletjes\b/, fn: paintDots,     label: '⚪ Stippen' },
-      { re: /\bruiten\b|\bblokjes\b|\bdambord\b/,     fn: paintChecker,  label: '◆ Ruiten' },
-      { re: /\bschalen\b|\bschubben\b/,               fn: paintScales,   label: '🐠 Schalen' },
-      { re: /\bvlekken\b|\bvlekjes\b/,                fn: paintBlotches, label: '🐆 Vlekken' },
-      { re: /\bverloop\b|\bgradient\b/,               fn: paintGradient, label: '🌈 Verloop' },
-      { re: /\bgolven\b|\bgolvend\b|\bstrepen\b|\bpatroon\b/, fn: paintWavyPattern, label: '🌊 Golven' },
-    ];
-
-    const matchedPattern = PATTERN_MAP.find(p => p.re.test(text));
-    if (matchedPattern) {
-      saveUndo();
-      let c1 = currentColor, c2 = '#ffffff';
-      for (const [word, hex] of Object.entries(COLOR_MAP)) {
-        if (text.includes(word) && hex !== 'rainbow') { c1 = hex; selectColor(c1); break; }
-      }
-      if (text.includes('regenboog')) { c1 = '#2196f3'; c2 = '#ff9800'; }
-      matchedPattern.fn(c1, c2);
-      voiceText.textContent = `${matchedPattern.label} geschilderd!`;
-      showToast(`${matchedPattern.label} klaar!`);
+    if (cmd.action === 'undo') {
+      undo();
+      voiceText.textContent = '↩️ Teruggedraaid!';
       return;
     }
-
-    // Find colour
-    let foundColor = null, colorName = null;
-    for (const [word, hex] of Object.entries(COLOR_MAP)) {
-      if (text.includes(word)) { foundColor = hex; colorName = word; break; }
-    }
-
-    // Find region (longest match first)
-    let foundRegion = null, regionName = null;
-    outer:
-    for (const region of REGION_MAP) {
-      for (const w of region.words) {
-        if (text.includes(w)) { foundRegion = region; regionName = region.words[0]; break outer; }
-      }
-    }
-
-    if (!foundColor && !foundRegion) {
-      voiceText.textContent = `❓ Niet begrepen — probeer "blauw lijf" of "rode staart"`;
+    if (cmd.pattern) {
+      saveUndo();
+      let c1 = cmd.color && cmd.color !== 'rainbow' ? cmd.color : currentColor;
+      let c2 = '#ffffff';
+      if (cmd.color && cmd.color !== 'rainbow') selectColor(cmd.color);
+      if (cmd.color === 'rainbow') { c1 = '#2196f3'; c2 = '#ff9800'; }
+      cmd.pattern.fn(c1, c2);
+      voiceText.textContent = `${cmd.pattern.label} geschilderd!`;
+      showToast(`${cmd.pattern.label} klaar!`);
       return;
     }
-
-    if (foundColor && foundColor !== 'rainbow') selectColor(foundColor);
-
-    if (foundRegion) {
+    if (!cmd.color && !cmd.region) {
+      voiceText.textContent = `❓ Niet begrepen: "${rawText}" — probeer "oranje lichaam"`;
+      return;
+    }
+    if (cmd.color && cmd.color !== 'rainbow') selectColor(cmd.color);
+    if (cmd.region) {
       saveUndo();
-      if (foundRegion.x === null) {
-        // Fill ALL zones separately
+      if (cmd.region.x === null) {
         const seeds = REGION_MAP.filter(r => r.x !== null);
         seeds.forEach((r, idx) => {
-          const clr = foundColor === 'rainbow' ? RAINBOW[idx % RAINBOW.length] : (foundColor || currentColor);
-          if (foundColor === 'rainbow') selectColor(clr);
+          const clr = cmd.color === 'rainbow' ? RAINBOW[idx % RAINBOW.length] : (cmd.color || currentColor);
+          if (cmd.color === 'rainbow') selectColor(clr);
           fillZone(r.x, r.y, clr);
         });
       } else {
-        const clr = foundColor === 'rainbow'
+        const clr = cmd.color === 'rainbow'
           ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)]
-          : (foundColor || currentColor);
-        if (foundColor === 'rainbow') selectColor(clr);
-        fillZone(foundRegion.x, foundRegion.y, clr);
+          : (cmd.color || currentColor);
+        if (cmd.color === 'rainbow') selectColor(clr);
+        fillZone(cmd.region.x, cmd.region.y, clr);
       }
-
-      const msg = foundColor ? `✨ ${regionName} geschilderd in ${colorName}!` : `✨ ${regionName} geschilderd!`;
+      const msg = cmd.color ? `✨ ${cmd.regionName} → ${cmd.colorName}!` : `✨ ${cmd.regionName} geschilderd!`;
       voiceText.textContent = msg;
       showToast(msg);
-
     } else {
-      voiceText.innerHTML = `🎨 Kleur ingesteld op <em>${colorName}</em> — zeg nu een visonderdeel!`;
+      voiceText.innerHTML = `🎨 Kleur: <em>${cmd.colorName}</em> — zeg nu een visonderdeel!`;
     }
   }
+
+  // ── Single-utterance recognition (tap → speak → auto-done) ──
+  // This is far more reliable than continuous mode, which drops out
+  // after a few seconds of silence, especially on mobile.
+  let isListening = false;
+
+  function startListening() {
+    if (isListening) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang            = 'nl-NL';
+    recognition.continuous      = false;   // ← key: one utterance, then auto-stop
+    recognition.interimResults  = true;    // show live text while speaking
+    recognition.maxAlternatives = 3;       // try up to 3 browser guesses
+
+    recognition.onstart = () => {
+      isListening = true;
+      micBtn.classList.add('listening');
+      micLabel.textContent = 'Spreek nu…';
+      voiceDiv.classList.add('listening');
+      voiceText.innerHTML  = '🎙️ Luisteren… zeg bijv. <em>"rode rugvin"</em>';
+    };
+
+    recognition.onresult = (e) => {
+      const interim = Array.from(e.results).map(r => r[0].transcript).join(' ');
+      voiceText.textContent = `"${interim}"`;
+
+      for (const result of e.results) {
+        if (result.isFinal) {
+          const { cmd, transcript } = tryAlternatives(result);
+          executeCommand(cmd, transcript);
+        }
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error === 'no-speech') {
+        voiceText.textContent = '🎙️ Geen spraak gehoord — tik opnieuw';
+      } else {
+        voiceText.textContent = `⚠️ Fout: ${e.error}`;
+      }
+    };
+
+    // onend fires automatically after the utterance is processed
+    recognition.onend = () => {
+      isListening = false;
+      micBtn.classList.remove('listening');
+      micLabel.textContent = 'Tik om te spreken';
+      voiceDiv.classList.remove('listening');
+    };
+
+    try { recognition.start(); }
+    catch (err) { isListening = false; console.warn('recognition.start():', err); }
+  }
+
+  micBtn.addEventListener('click', () => { if (!isListening) startListening(); });
+
+  // Initial label
+  micLabel.textContent = 'Tik om te spreken';
+  voiceText.innerHTML  = 'Zeg een kleur + visonderdeel — bijv. <em>"oranje lichaam"</em> of <em>"groene rugvin"</em>';
 }
+
