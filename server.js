@@ -23,6 +23,46 @@ async function generateQRFile(url) {
   return outputPath;
 }
 
+// ── Daily challenge (same rotation as challenges.js) ─
+const CHALLENGES = [
+  { emoji:'🌊', title:'Oceaanvis',     description:'Kleur je vis als een echte oceaanvis!' },
+  { emoji:'🦑', title:'Diepzeevis',    description:'Uit de diepste oceaan!' },
+  { emoji:'🧊', title:'IJsvis',        description:'Bevroren in de Noordpool!' },
+  { emoji:'🌋', title:'Lavavis',       description:'Uit een gloeiende vulkaan!' },
+  { emoji:'🌿', title:'Junglevis',     description:'Verborgen tussen de bladeren!' },
+  { emoji:'🏜️', title:'Woestijnvis',   description:'Overleven in de woestijn!' },
+  { emoji:'🎄', title:'Kerstvis',      description:'Ho ho ho!' },
+  { emoji:'🎃', title:'Halloweenvis',  description:'Zo eng mogelijk!' },
+  { emoji:'💝', title:'Valentijnsvis', description:'Verliefd op de oceaan!' },
+  { emoji:'🎊', title:'Feestvis',      description:'Het is feest in de oceaan!' },
+  { emoji:'🌸', title:'Lentervis',     description:'Fris en nieuw als de lente!' },
+  { emoji:'☀️', title:'Zomervis',      description:'Op vakantie in de zon!' },
+  { emoji:'🤡', title:'Clownvis',      description:'Nemo-stijl!' },
+  { emoji:'🥷', title:'Ninjavis',      description:'Onzichtbaar in de nacht!' },
+  { emoji:'👽', title:'Alienvis',      description:'Niet van deze planeet!' },
+  { emoji:'🤖', title:'Robotvis',      description:'Gemaakt van metaal!' },
+  { emoji:'🦸', title:'Superheldvis',  description:'Redder van de oceaan!' },
+  { emoji:'🏴‍☠️', title:'Piratenvis',   description:'Schrik van de zeven zeeën!' },
+  { emoji:'🧜', title:'Zeemeerminvis', description:'Magisch uit de diepte!' },
+  { emoji:'👑', title:'Koningsvis',    description:'Heerser van de oceaan!' },
+  { emoji:'☠️', title:'Giftige vis',   description:'Aanraakbaar is VERBODEN!' },
+  { emoji:'🍬', title:'Pastelvis',     description:'Zacht en lief!' },
+  { emoji:'⚙️', title:'Metallic vis',  description:'Glanzend als een spiegel!' },
+  { emoji:'🌈', title:'Regenboogvis',  description:'Alle kleuren van de regenboog!' },
+  { emoji:'🐙', title:'Camouflagevis', description:'Niemand kan je zien!' },
+  { emoji:'🖼️', title:'Van Gogh vis',  description:'Een levend schilderij!' },
+  { emoji:'🕺', title:'Discovis',      description:'Dansen in de oceaan!' },
+  { emoji:'🇳🇱', title:'Nederlandsevis',description:'Oranje boven!' },
+  { emoji:'🌙', title:'Nachtvis',      description:'De oceaan bij nacht!' },
+  { emoji:'🔥', title:'Vuurvis',       description:'Brandend heet!' },
+];
+
+function todaysChallenge() {
+  const d = new Date();
+  const dayIdx = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  return CHALLENGES[dayIdx % CHALLENGES.length];
+}
+
 // ── Static files & JSON ───────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '10mb' }));
@@ -32,6 +72,17 @@ app.get('/qr', (req, res) => {
   const qrPath = path.join(__dirname, 'public', 'qrcode.png');
   if (fs.existsSync(qrPath)) res.sendFile(qrPath);
   else res.status(404).send('QR not ready yet');
+});
+
+// ── Today's challenge (for Unity to fetch on startup) ─
+app.get('/challenge', (req, res) => {
+  const c = todaysChallenge();
+  res.json({
+    type:                 'challenge',
+    challengeTitle:       c.title,
+    challengeEmoji:       c.emoji,
+    challengeDescription: c.description,
+  });
 });
 
 // ── Fish submission → WebSocket broadcast ─────────────
@@ -58,6 +109,14 @@ app.post('/submit-fish', (req, res) => {
 // ── WebSocket ─────────────────────────────────────────
 wss.on('connection', ws => {
   console.log('🎮 Unity client connected');
+  // Push today's challenge immediately on connect
+  const c = todaysChallenge();
+  ws.send(JSON.stringify({
+    type:                 'challenge',
+    challengeTitle:       c.title,
+    challengeEmoji:       c.emoji,
+    challengeDescription: c.description,
+  }));
   ws.on('close', () => console.log('🎮 Unity client disconnected'));
 });
 
