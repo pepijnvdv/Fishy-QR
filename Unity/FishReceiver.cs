@@ -2,7 +2,7 @@
  * FishReceiver.cs
  * ─────────────────────────────────────────────────────────────────────────────
  * Connects to the Node.js server via WebSocket and relays incoming fish images
- * to FishSpawner on the Unity main thread.
+ * (+ daily challenge data) to FishSpawner on the Unity main thread.
  *
  * SETUP:
  *  1. Install NativeWebSocket:
@@ -30,8 +30,8 @@ public class FishReceiver : MonoBehaviour
     [Tooltip("Seconds between reconnect attempts")]
     public float reconnectDelay = 3f;
 
-    // Thread-safe queue of raw base64 image strings received from server
-    private readonly Queue<string> _pendingImages = new Queue<string>();
+    // ── Pending fish queue (thread-safe) ──────────────────
+    private readonly Queue<FishPayload> _pendingFish = new Queue<FishPayload>();
     private readonly object _lock = new object();
 
     private WebSocket _ws;
@@ -76,11 +76,18 @@ public class FishReceiver : MonoBehaviour
             {
                 string json = System.Text.Encoding.UTF8.GetString(bytes);
                 var msg     = JsonUtility.FromJson<ServerMessage>(json);
+
                 if (msg.type == "fish" && !string.IsNullOrEmpty(msg.imageData))
                 {
                     lock (_lock)
                     {
-                        _pendingImages.Enqueue(msg.imageData);
+                        _pendingFish.Enqueue(new FishPayload
+                        {
+                            imageData            = msg.imageData,
+                            challengeTitle       = msg.challengeTitle,
+                            challengeEmoji       = msg.challengeEmoji,
+                            challengeDescription = msg.challengeDescription,
+                        });
                     }
                 }
             }
@@ -103,10 +110,15 @@ public class FishReceiver : MonoBehaviour
         // Drain the queue on the main thread
         lock (_lock)
         {
-            while (_pendingImages.Count > 0)
+            while (_pendingFish.Count > 0)
             {
-                string imageData = _pendingImages.Dequeue();
-                _spawner.SpawnFish(imageData);
+                var payload = _pendingFish.Dequeue();
+                _spawner.SpawnFish(payload.imageData);
+                _spawner.ShowChallenge(
+                    payload.challengeTitle,
+                    payload.challengeEmoji,
+                    payload.challengeDescription
+                );
             }
         }
     }
@@ -116,11 +128,26 @@ public class FishReceiver : MonoBehaviour
         _quitting = true;
         _ws?.Close();
     }
-    
+
+    // ── Data types ────────────────────────────────────────
+
+    /// <summary>Flat payload sent over WebSocket from Node server.</summary>
     [Serializable]
     private class ServerMessage
     {
         public string type;
         public string imageData;
+        public string challengeTitle;
+        public string challengeEmoji;
+        public string challengeDescription;
+    }
+
+    /// <summary>Decoded payload queued for main-thread processing.</summary>
+    private struct FishPayload
+    {
+        public string imageData;
+        public string challengeTitle;
+        public string challengeEmoji;
+        public string challengeDescription;
     }
 }

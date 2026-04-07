@@ -2,15 +2,19 @@
    Fish Coloring App – app.js  (voice-only, zone-fill)
    ===================================================== */
 
-// ── Two-canvas setup ─────────────────────────────────
+// ── Three-canvas setup ───────────────────────────────
 // paintCanvas (bottom): where colours are drawn
-// outlineCanvas (top, pointer-events:none): permanent fish outline
-const paintCanvas   = document.getElementById('fishCanvas');
-const paintCtx      = paintCanvas.getContext('2d', { willReadFrequently: true });
-const outlineCanvas = document.getElementById('outlineCanvas');
-const outlineCtx    = outlineCanvas.getContext('2d');
+// outlineCanvas (middle, pointer-events:none): permanent fish outline
+// accessoryCanvas (top, pointer-events:none): hats/glasses/etc.
+const paintCanvas     = document.getElementById('fishCanvas');
+const paintCtx        = paintCanvas.getContext('2d', { willReadFrequently: true });
+const outlineCanvas   = document.getElementById('outlineCanvas');
+const outlineCtx      = outlineCanvas.getContext('2d');
+const accessoryCanvas = document.getElementById('accessoryCanvas');
+const accessoryCtx    = accessoryCanvas.getContext('2d');
 const W = paintCanvas.width;   // 800
 const H = paintCanvas.height;  // 500
+let currentAccessory  = null;  // name of active accessory, or null
 
 // ── State ─────────────────────────────────────────────
 let currentColor = '#ff6b35';
@@ -381,7 +385,148 @@ function paintGradient(color1, color2) {
   paintCtx.putImageData(imgData, 0, 0);
 }
 
-// ── Toast ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+// ACCESSORY DRAWING FUNCTIONS
+// All drawn on accessoryCanvas (800×500, fish faces RIGHT)
+// Fish head centre: ~(590, 230)  Top of head: ~(580, 158)
+// ══════════════════════════════════════════════════════
+
+function drawHoed(ctx) {
+  ctx.save();
+  const cx = 572, brimY = 172;
+  // Shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 8;
+  // Cylinder
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.rect(cx - 33, brimY - 68, 66, 68);
+  ctx.fill();
+  // Brim
+  ctx.beginPath();
+  ctx.ellipse(cx, brimY, 50, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Hat band
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ff6b35';
+  ctx.fillRect(cx - 33, brimY - 22, 66, 13);
+  // Top oval
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.ellipse(cx, brimY - 68, 33, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawKroon(ctx) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 8;
+  const cx = 578, bottom = 163, h = 50, hw = 42;
+  // Crown body
+  ctx.fillStyle = '#ffd600';
+  ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - hw, bottom);
+  ctx.lineTo(cx - hw, bottom - h * 0.5);
+  ctx.lineTo(cx - hw * 0.55, bottom - h * 0.75);
+  ctx.lineTo(cx - hw * 0.18, bottom - h * 0.45);
+  ctx.lineTo(cx,             bottom - h);           // centre peak
+  ctx.lineTo(cx + hw * 0.18, bottom - h * 0.45);
+  ctx.lineTo(cx + hw * 0.55, bottom - h * 0.75);
+  ctx.lineTo(cx + hw, bottom - h * 0.5);
+  ctx.lineTo(cx + hw, bottom);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Gems
+  [['#f44336', cx - hw*0.35], ['#00e5ff', cx], ['#f44336', cx + hw*0.35]].forEach(([col, gx]) => {
+    ctx.fillStyle = col;
+    ctx.shadowColor = col; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(gx, bottom - h * 0.55, 5, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawZonnebril(ctx) {
+  ctx.save();
+  const ex = 605, ey = 239;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6;
+  // Single goggle lens (profile fish — one eye visible)
+  ctx.fillStyle = 'rgba(0, 188, 212, 0.45)';
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.ellipse(ex, ey, 27, 21, -0.1, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Cool tint stripe inside lens
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(ex - 18, ey - 8); ctx.lineTo(ex + 14, ey - 8); ctx.stroke();
+  // Arm going left (back of head)
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(ex - 27, ey);
+  ctx.quadraticCurveTo(ex - 44, ey - 12, ex - 46, ey - 22);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStrikje(ctx) {
+  ctx.save();
+  const x = 548, y = 278;
+  ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 6;
+  const drawWing = (dir) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + dir * 24, y - 15);
+    ctx.lineTo(x + dir * 24, y + 15);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  };
+  ctx.fillStyle = '#e91e63'; ctx.strokeStyle = '#880e4f'; ctx.lineWidth = 1.5;
+  drawWing(-1); drawWing(1);
+  // Centre knot
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ff4081';
+  ctx.beginPath(); ctx.ellipse(x, y, 6, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function drawSnorkel(ctx) {
+  ctx.save();
+  const ex = 605, ey = 239;
+  // Mask
+  ctx.fillStyle = 'rgba(0,200,200,0.25)';
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3.5;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.ellipse(ex, ey, 30, 23, -0.1, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Tube — curves up from left side of mask
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(ex - 26, ey - 8);
+  ctx.quadraticCurveTo(ex - 48, ey - 60, ex - 38, ey - 100);
+  ctx.stroke();
+  // Mouthpiece tip
+  ctx.fillStyle = '#ff9800';
+  ctx.beginPath(); ctx.arc(ex - 38, ey - 103, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Accessory helpers ─────────────────────────────────
+const ACCESSORY_DRAW = {
+  hoed:      drawHoed,
+  kroon:     drawKroon,
+  zonnebril: drawZonnebril,
+  strikje:   drawStrikje,
+  snorkel:   drawSnorkel,
+};
+
+function drawAccessory(name) {
+  accessoryCtx.clearRect(0, 0, W, H);
+  currentAccessory = name;
+  if (name && ACCESSORY_DRAW[name]) ACCESSORY_DRAW[name](accessoryCtx);
+}
+function clearAccessory() { drawAccessory(null); }
 function showToast(msg, duration = 2800) {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
@@ -399,14 +544,21 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
     const tmpCanvas = document.createElement('canvas');
     tmpCanvas.width  = W; tmpCanvas.height = H;
     const tmp = tmpCanvas.getContext('2d');
-    tmp.drawImage(paintCanvas,   0, 0);
-    tmp.drawImage(outlineCanvas, 0, 0);
+    tmp.drawImage(paintCanvas,     0, 0);
+    tmp.drawImage(outlineCanvas,   0, 0);
+    tmp.drawImage(accessoryCanvas, 0, 0);
 
     const imageData = tmpCanvas.toDataURL('image/png');
+    const challenge  = getTodaysChallenge();
     const res = await fetch('/submit-fish', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ imageData }),
+      body:    JSON.stringify({
+        imageData,
+        challengeTitle:       challenge.title,
+        challengeEmoji:       challenge.emoji,
+        challengeDescription: challenge.description,
+      }),
     });
     const json = await res.json();
     if (res.ok && json.success) {
@@ -470,25 +622,47 @@ function setupVoice() {
   // ── Vocabulary ───────────────────────────────────────
   // Colours – include inflected forms (rode, blauwe, groene…) to catch browser inflections
   const COLOR_MAP = {
+    // Base
     rood: '#f44336', rode: '#f44336', rooie: '#f44336', root: '#f44336',
     oranje: '#ff9800', oranja: '#ff9800',
-    geel: '#ffd600', gele: '#ffd600', goud: '#ffd600', gouden: '#ffd600',
+    geel: '#ffd600', gele: '#ffd600',
     groen: '#4caf50', groene: '#4caf50', grune: '#4caf50',
     turkoois: '#00bcd4', turquoise: '#00bcd4', cyaan: '#00bcd4', aqua: '#4db6ac',
     blauw: '#2196f3', blauwe: '#2196f3', blaauwe: '#2196f3', blouw: '#2196f3',
-    paars: '#9c27b0', paarze: '#9c27b0', paarze: '#9c27b0', violet: '#9c27b0',
-    roze: '#e91e63', roze: '#e91e63', pink: '#e91e63',
-    wit: '#ffffff', witte: '#ffffff', ivoor: '#ffffff',
+    paars: '#9c27b0', paarze: '#9c27b0', violet: '#9c27b0',
+    roze: '#e91e63', pink: '#e91e63',
+    wit: '#ffffff', witte: '#ffffff',
     zwart: '#1a1a2e', zwarte: '#1a1a2e',
-    grijs: '#78909c', grijze: '#78909c', grize: '#78909c', zilver: '#78909c',
+    grijs: '#78909c', grijze: '#78909c', zilver: '#c0c0c0',
     bruin: '#795548', bruine: '#795548',
     regenboog: 'rainbow', kleurrijk: 'rainbow',
+    // Metallic
+    goud: '#ffd700', gouden: '#ffd700',
+    brons: '#cd7f32', bronzen: '#cd7f32',
+    koper: '#b87333',
+    // Neon
+    neonroze: '#ff1493', neonpink: '#ff1493',
+    neongroen: '#39ff14', neonlime: '#39ff14',
+    neonblauw: '#00aaff', neonblauw: '#00aaff',
+    neongeel: '#ffff00',
+    neonoranje: '#ff4500',
+    neonpaars: '#bf00ff',
+    // Pastel
+    pastelroze: '#ffb3d9', lichtroze: '#ffb3d9', babyroos: '#ffb3d9',
+    pastelblauw: '#87ceeb', babyblauw: '#87ceeb', lichtblauw: '#87ceeb',
+    mintgroen: '#98ff98', mint: '#98ff98',
+    pastelgeel: '#fffacd', zachtgeel: '#fffacd',
+    lavendel: '#e6d5ff', lichtpaars: '#e6d5ff',
+    perzik: '#ffcba4', zalm: '#ff8a65',
+    koraal: '#ff6b6b', koraalrood: '#ff6b6b',
+    indigo: '#4b0082',
+    smaragd: '#50c878', smaragdgroen: '#50c878',
   };
 
   // Regions – seed coords land inside the zone on the hidden zone canvas
   const REGION_MAP = [
     { words: ['lichaam','lijf','romp','midden','centrum','body'], x: 430, y: 250 },
-    { words: ['staart','achterkant','achterin','tail'],            x:  55, y: 195 },
+    { words: ['staart','achterkant','achterin','tail'],            x: 100, y: 250 },
     { words: ['oog','pupil','iris','ogen','eye'],                  x: 580, y: 230 },
     { words: ['rugvin','rugfin','bovenvin','topvin','bovenfin','dorsal','rug'], x: 390, y: 105 },
     { words: ['borstvin','borstfin','zijvin','middelvin','borst'], x: 385, y: 290 },
@@ -518,6 +692,10 @@ function setupVoice() {
   const clearWords   = ['wissen','leegmaken','opnieuw','schoon','clear','reset'];
   const undoWords    = ['ongedaan','terugdraaien','terug','undo'];
 
+  // ── Accessory vocab ──────────────────────────────────
+  const accessoryWords = ['hoed','kroon','zonnebril','strikje','snorkel'];
+  const removeAccessoryWords = ['geen','verwijder','weg','af','verwijderen'];
+
   // ── Smart parser ─────────────────────────────────────
   // Splits text into words and fuzzy-matches each against the full vocabulary.
   function parseCommand(text) {
@@ -532,6 +710,10 @@ function setupVoice() {
       if (!foundColor && !foundRegion && !foundPattern) {
         if (bestFuzzy(word, clearWords, 0.30)) return { action: 'clear' };
         if (bestFuzzy(word, undoWords,  0.30)) return { action: 'undo' };
+        // Accessory commands
+        if (bestFuzzy(word, removeAccessoryWords, 0.30)) return { action: 'removeAccessory' };
+        const matchedAcc = bestFuzzy(word, accessoryWords, 0.35);
+        if (matchedAcc) return { action: 'accessory', name: matchedAcc };
       }
       // Color
       if (!foundColor) {
@@ -574,6 +756,20 @@ function setupVoice() {
     if (cmd.action === 'undo') {
       undo();
       voiceText.textContent = '↩️ Teruggedraaid!';
+      return;
+    }
+    if (cmd.action === 'accessory') {
+      drawAccessory(cmd.name);
+      const labels = { hoed:'🎩 Hoed', kroon:'👑 Kroon', zonnebril:'😎 Zonnebril', strikje:'🎀 Strikje', snorkel:'🤿 Snorkel' };
+      const lbl = labels[cmd.name] || cmd.name;
+      voiceText.textContent = `${lbl} opgezet!`;
+      showToast(`${lbl} opgezet!`);
+      return;
+    }
+    if (cmd.action === 'removeAccessory') {
+      clearAccessory();
+      voiceText.textContent = '✂️ Accessoire verwijderd!';
+      showToast('✂️ Accessoire weg!');
       return;
     }
     if (cmd.pattern) {

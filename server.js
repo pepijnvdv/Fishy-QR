@@ -36,14 +36,22 @@ app.get('/qr', (req, res) => {
 
 // ── Fish submission → WebSocket broadcast ─────────────
 app.post('/submit-fish', (req, res) => {
-  const { imageData } = req.body;
+  const { imageData, challengeTitle, challengeEmoji, challengeDescription } = req.body;
   if (!imageData) return res.status(400).json({ error: 'No imageData' });
+
+  const msg = JSON.stringify({
+    type: 'fish',
+    imageData,
+    challengeTitle:       challengeTitle       || '',
+    challengeEmoji:       challengeEmoji       || '',
+    challengeDescription: challengeDescription || '',
+  });
 
   let sent = 0;
   wss.clients.forEach(client => {
-    if (client.readyState === 1) { client.send(JSON.stringify({ type: 'fish', imageData })); sent++; }
+    if (client.readyState === 1) { client.send(msg); sent++; }
   });
-  console.log(`🐟 Fish received! Broadcast to ${sent} Unity client(s).`);
+  console.log(`🐟 Fish received! [${challengeEmoji} ${challengeTitle}] → ${sent} Unity client(s).`);
   res.json({ success: true, broadcastTo: sent });
 });
 
