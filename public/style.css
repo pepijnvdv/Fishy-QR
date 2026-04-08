@@ -276,3 +276,24 @@ html, body {
   color: var(--teal-glow); font-size: 0.72rem; font-weight: 800;
   flex-shrink: 0;
 }
+
+/* ── Creature Selector ── */
+.creature-selector {
+  display: flex; gap: 10px; justify-content: center; padding: 2px 0 4px;
+}
+.creature-btn {
+  flex: 1; padding: 10px 8px;
+  border: 1.5px solid rgba(0,200,200,0.25); border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  font-family: inherit; font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.creature-btn:hover {
+  border-color: rgba(0,200,200,0.55);
+  background: rgba(0,200,200,0.08); color: var(--text);
+}
+.creature-btn.active {
+  border-color: var(--teal); background: rgba(0,200,200,0.15);
+  color: var(--teal-glow); box-shadow: 0 0 12px rgba(0,200,200,0.25);
+}

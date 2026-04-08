@@ -72,6 +72,11 @@ function clearFish() {
 document.getElementById('btn-undo' ).addEventListener('click', undo);
 document.getElementById('btn-clear').addEventListener('click', clearFish);
 
+// ── Creature selector ─────────────────────────────────
+document.querySelectorAll('.creature-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchCreature(btn.dataset.creature));
+});
+
 const encode = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
 
 // ══════════════════════════════════════════════════════
@@ -162,11 +167,12 @@ let   zoneData   = null;
 const fillImg    = new Image();
 const outlineImg = new Image();
 const zoneImg    = new Image();
-let   loadCount  = 0;
+window._creatureLoadCount = 0;
+let _voiceReady = false;
 
 function onReady() {
-  loadCount++;
-  if (loadCount < 3) return; // wait for all 3 images
+  window._creatureLoadCount++;
+  if (window._creatureLoadCount < 3) return;
 
   // Zone canvas
   zoneCtx.clearRect(0, 0, W, H);
@@ -177,20 +183,22 @@ function onReady() {
   outlineCtx.clearRect(0, 0, W, H);
   outlineCtx.drawImage(outlineImg, 0, 0, W, H);
 
-  // Paint canvas (white-filled fish as starting state)
+  // Paint + accessory canvas (fresh state)
+  undoStack.length = 0;
   drawFish();
+  accessoryCtx.clearRect(0, 0, W, H);
 
   document.getElementById('canvas-hint').classList.add('hidden');
-  setupVoice();
+  if (!_voiceReady) { setupVoice(); _voiceReady = true; }
 }
 
 fillImg.onload    = onReady;
 outlineImg.onload = onReady;
 zoneImg.onload    = onReady;
 
-fillImg.src    = encode(FILL_SVG);
-outlineImg.src = encode(OUTLINE_SVG);
-zoneImg.src    = encode(ZONE_SVG);
+fillImg.src    = encode(currentCreature.fillSvg);
+outlineImg.src = encode(currentCreature.outlineSvg);
+zoneImg.src    = encode(currentCreature.zoneSvg);
 
 // ── Zone-aware flood fill ─────────────────────────────
 function hexToRgba(hex) {
@@ -555,6 +563,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
         imageData,
+        creatureType:         currentCreature.id,
         challengeTitle:       challenge.title,
         challengeEmoji:       challenge.emoji,
         challengeDescription: challenge.description,
@@ -590,6 +599,38 @@ function setupVoice() {
     micBtn.style.cursor  = 'not-allowed';
     micLabel.textContent = 'Niet ondersteund – gebruik Chrome/Edge';
     return;
+  }
+
+  // ── Easter-egg presets ────────────────────────────────
+  // Look up a zone seed from the current creature's regionMap by keyword.
+  function zoneSeed(keyword) {
+    return currentRegionMap.find(r => r.words.includes(keyword));
+  }
+  function fillZoneSeed(keyword, color) {
+    const r = zoneSeed(keyword);
+    if (r && r.x !== null) fillZone(r.x, r.y, color);
+  }
+
+  function applyKanye() {
+    saveUndo();
+    // Yeezy / dark mode palette: black body, white fins, gold eye
+    fillZoneSeed('lichaam',    '#0d0d14'); // body   — off-black
+    fillZoneSeed('staart',     '#0d0d14'); // tail   — off-black
+    fillZoneSeed('rugvin',     '#e8e0d0'); // dorsal — cream
+    fillZoneSeed('borstvin',   '#a89070'); // pec    — tan
+    fillZoneSeed('buikvinnen', '#a89070'); // belly  — tan
+    fillZoneSeed('oog',        '#ffd700'); // eye    — gold
+  }
+
+  function applySixNine() {
+    saveUndo();
+    // 6ix9ine rainbow — every zone a clashing bright colour
+    fillZoneSeed('lichaam',    '#ff073a'); // body   — neon red
+    fillZoneSeed('rugvin',     '#ff8c00'); // dorsal — orange
+    fillZoneSeed('borstvin',   '#f5ff00'); // pec    — yellow
+    fillZoneSeed('buikvinnen', '#00ff55'); // belly  — green
+    fillZoneSeed('staart',     '#00cfff'); // tail   — cyan
+    fillZoneSeed('oog',        '#9b00ff'); // eye    — purple
   }
 
   // ── Levenshtein fuzzy distance ───────────────────────
@@ -659,16 +700,6 @@ function setupVoice() {
     smaragd: '#50c878', smaragdgroen: '#50c878',
   };
 
-  // Regions – seed coords land inside the zone on the hidden zone canvas
-  const REGION_MAP = [
-    { words: ['lichaam','lijf','romp','midden','centrum','body'], x: 430, y: 250 },
-    { words: ['staart','achterkant','achterin','tail'],            x: 100, y: 250 },
-    { words: ['oog','pupil','iris','ogen','eye'],                  x: 580, y: 230 },
-    { words: ['rugvin','rugfin','bovenvin','topvin','bovenfin','dorsal','rug'], x: 390, y: 105 },
-    { words: ['borstvin','borstfin','zijvin','middelvin','borst'], x: 385, y: 290 },
-    { words: ['buikvinnen','buikvin','ondervin','ondervinnen','onderfin','buik','onderste'], x: 465, y: 373 },
-    { words: ['alles','geheel','heel','everything','hele'],         x: null, y: null },
-  ];
 
   // Patterns
   const PATTERN_MAP = [
@@ -683,9 +714,7 @@ function setupVoice() {
 
   // Flat lookup maps for fuzzy scanning
   const colorWords   = Object.keys(COLOR_MAP);
-  const regionWordToRegion = {};
-  REGION_MAP.forEach(r => r.words.forEach(w => { regionWordToRegion[w] = r; }));
-  const regionWords  = Object.keys(regionWordToRegion);
+  // regionWords / regionWordToRegion are rebuilt per-call (see parseCommand)
   const patternWordToPat = {};
   PATTERN_MAP.forEach(p => p.words.forEach(w => { patternWordToPat[w] = p; }));
   const patternWords = Object.keys(patternWordToPat);
@@ -710,6 +739,9 @@ function setupVoice() {
       if (!foundColor && !foundRegion && !foundPattern) {
         if (bestFuzzy(word, clearWords, 0.30)) return { action: 'clear' };
         if (bestFuzzy(word, undoWords,  0.30)) return { action: 'undo' };
+        // Easter eggs
+        if (bestFuzzy(word, ['kanye','ye','yeezy','west'], 0.34)) return { action: 'kanye' };
+        if (bestFuzzy(word, ['69','6ix9ine','tekashi','negenenzestig'], 0.34)) return { action: 'sixnine' };
         // Accessory commands
         if (bestFuzzy(word, removeAccessoryWords, 0.30)) return { action: 'removeAccessory' };
         const matchedAcc = bestFuzzy(word, accessoryWords, 0.35);
@@ -720,11 +752,14 @@ function setupVoice() {
         const m = bestFuzzy(word, colorWords, 0.38);
         if (m) { foundColor = COLOR_MAP[m]; colorName = m; }
       }
-      // Region
-      if (!foundRegion) {
-        const m = bestFuzzy(word, regionWords, 0.38);
-        if (m) { foundRegion = regionWordToRegion[m]; regionName = m; }
-      }
+    // Region — rebuilt each call so creature switching takes effect
+    if (!foundRegion) {
+      const rMap = {};
+      currentRegionMap.forEach(r => r.words.forEach(w => { rMap[w] = r; }));
+      const rWords = Object.keys(rMap);
+      const m = bestFuzzy(word, rWords, 0.38);
+      if (m) { foundRegion = rMap[m]; regionName = m; }
+    }
       // Pattern
       if (!foundPattern) {
         const m = bestFuzzy(word, patternWords, 0.38);
@@ -770,6 +805,18 @@ function setupVoice() {
       clearAccessory();
       voiceText.textContent = '✂️ Accessoire verwijderd!';
       showToast('✂️ Accessoire weg!');
+      return;
+    }
+    if (cmd.action === 'kanye') {
+      applyKanye();
+      voiceText.textContent = '🎤 Kanye Vis!';
+      showToast('🎤 Kanye Vis! Donda!');
+      return;
+    }
+    if (cmd.action === 'sixnine') {
+      applySixNine();
+      voiceText.textContent = '🌈 69 Vis!';
+      showToast('🌈 69 Vis! GUMMO!');
       return;
     }
     if (cmd.pattern) {

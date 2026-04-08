@@ -125,6 +125,7 @@ public class FishReceiver : MonoBehaviour
                         _pendingFish.Enqueue(new FishPayload
                         {
                             imageData            = msg.imageData,
+                            creatureType         = msg.creatureType,
                             challengeTitle       = msg.challengeTitle,
                             challengeEmoji       = msg.challengeEmoji,
                             challengeDescription = msg.challengeDescription,
@@ -189,6 +190,7 @@ public class FishReceiver : MonoBehaviour
     {
         public string type;
         public string imageData;
+        public string creatureType;
         public string challengeTitle;
         public string challengeEmoji;
         public string challengeDescription;
@@ -197,6 +199,7 @@ public class FishReceiver : MonoBehaviour
     private struct FishPayload
     {
         public string imageData;
+        public string creatureType;
         public string challengeTitle;
         public string challengeEmoji;
         public string challengeDescription;

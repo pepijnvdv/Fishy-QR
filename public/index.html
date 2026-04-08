@@ -17,9 +17,15 @@
 
   <main class="app">
     <header class="header">
-      <h1>🐟 Kleur Jouw Vis</h1>
-      <p class="subtitle">Zeg een kleur en een visonderdeel om te schilderen!</p>
+      <h1>🎨 Kleur Jouw Dier</h1>
+      <p class="subtitle">Zeg een kleur en een onderdeel om te schilderen!</p>
     </header>
+
+    <!-- Creature selector -->
+    <div class="creature-selector" id="creature-selector">
+      <button class="creature-btn active" data-creature="vis"  id="btn-vis">🐟 Vis</button>
+      <button class="creature-btn"        data-creature="haai" id="btn-haai">🦈 Haai</button>
+    </div>
 
     <!-- Voice command guide — shown at top -->
     <div class="voice-guide">
@@ -77,6 +83,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
 
+  <script src="creatures.js"></script>
   <script src="challenges.js"></script>
   <script src="app.js"></script>
 </body>
