@@ -396,40 +396,39 @@ function paintGradient(color1, color2) {
 // ══════════════════════════════════════════════════════
 // ACCESSORY DRAWING FUNCTIONS
 // All drawn on accessoryCanvas (800×500, fish faces RIGHT)
-// Fish head centre: ~(590, 230)  Top of head: ~(580, 158)
+// Baseline: Vis eye centre (585, 230). Shark eye (628, 245) → offset applied automatically.
 // ══════════════════════════════════════════════════════
 
+// Returns {dx,dy} shift from the vis-baseline eye so accessories follow the current creature.
+function getAccessoryOffset() {
+  const BASE_EX = 585, BASE_EY = 230; // vis eye
+  const eyeReg = currentRegionMap.find(r => r.words.includes('oog'));
+  const ex = eyeReg ? eyeReg.x : BASE_EX;
+  const ey = eyeReg ? eyeReg.y : BASE_EY;
+  return { dx: ex - BASE_EX, dy: ey - BASE_EY };
+}
+
 function drawHoed(ctx) {
+  const { dx, dy } = getAccessoryOffset();
   ctx.save();
-  const cx = 572, brimY = 172;
-  // Shadow
+  const cx = 572 + dx, brimY = 172 + dy;
   ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 8;
-  // Cylinder
   ctx.fillStyle = '#1a1a2e';
-  ctx.beginPath();
-  ctx.rect(cx - 33, brimY - 68, 66, 68);
-  ctx.fill();
-  // Brim
-  ctx.beginPath();
-  ctx.ellipse(cx, brimY, 50, 10, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Hat band
+  ctx.beginPath(); ctx.rect(cx - 33, brimY - 68, 66, 68); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx, brimY, 50, 10, 0, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#ff6b35';
   ctx.fillRect(cx - 33, brimY - 22, 66, 13);
-  // Top oval
   ctx.fillStyle = '#1a1a2e';
-  ctx.beginPath();
-  ctx.ellipse(cx, brimY - 68, 33, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx, brimY - 68, 33, 7, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
 function drawKroon(ctx) {
+  const { dx, dy } = getAccessoryOffset();
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 8;
-  const cx = 578, bottom = 163, h = 50, hw = 42;
-  // Crown body
+  const cx = 578 + dx, bottom = 163 + dy, h = 50, hw = 42;
   ctx.fillStyle = '#ffd600';
   ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 2;
   ctx.beginPath();
@@ -437,14 +436,13 @@ function drawKroon(ctx) {
   ctx.lineTo(cx - hw, bottom - h * 0.5);
   ctx.lineTo(cx - hw * 0.55, bottom - h * 0.75);
   ctx.lineTo(cx - hw * 0.18, bottom - h * 0.45);
-  ctx.lineTo(cx,             bottom - h);           // centre peak
+  ctx.lineTo(cx,             bottom - h);
   ctx.lineTo(cx + hw * 0.18, bottom - h * 0.45);
   ctx.lineTo(cx + hw * 0.55, bottom - h * 0.75);
   ctx.lineTo(cx + hw, bottom - h * 0.5);
   ctx.lineTo(cx + hw, bottom);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
-  // Gems
   [['#f44336', cx - hw*0.35], ['#00e5ff', cx], ['#f44336', cx + hw*0.35]].forEach(([col, gx]) => {
     ctx.fillStyle = col;
     ctx.shadowColor = col; ctx.shadowBlur = 6;
@@ -454,20 +452,17 @@ function drawKroon(ctx) {
 }
 
 function drawZonnebril(ctx) {
+  const { dx, dy } = getAccessoryOffset();
   ctx.save();
-  const ex = 605, ey = 239;
+  const ex = 600 + dx, ey = 237 + dy;
   ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6;
-  // Single goggle lens (profile fish — one eye visible)
   ctx.fillStyle = 'rgba(0, 188, 212, 0.45)';
   ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.ellipse(ex, ey, 27, 21, -0.1, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.ellipse(ex, ey, 27, 21, -0.1, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
-  // Cool tint stripe inside lens
   ctx.shadowBlur = 0;
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(ex - 18, ey - 8); ctx.lineTo(ex + 14, ey - 8); ctx.stroke();
-  // Arm going left (back of head)
   ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(ex - 27, ey);
@@ -477,8 +472,9 @@ function drawZonnebril(ctx) {
 }
 
 function drawStrikje(ctx) {
+  const { dx, dy } = getAccessoryOffset();
   ctx.save();
-  const x = 548, y = 278;
+  const x = 548 + dx, y = 278 + dy;
   ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 6;
   const drawWing = (dir) => {
     ctx.beginPath();
@@ -490,7 +486,6 @@ function drawStrikje(ctx) {
   };
   ctx.fillStyle = '#e91e63'; ctx.strokeStyle = '#880e4f'; ctx.lineWidth = 1.5;
   drawWing(-1); drawWing(1);
-  // Centre knot
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#ff4081';
   ctx.beginPath(); ctx.ellipse(x, y, 6, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -498,23 +493,20 @@ function drawStrikje(ctx) {
 }
 
 function drawSnorkel(ctx) {
+  const { dx, dy } = getAccessoryOffset();
   ctx.save();
-  const ex = 605, ey = 239;
-  // Mask
+  const ex = 600 + dx, ey = 237 + dy;
   ctx.fillStyle = 'rgba(0,200,200,0.25)';
   ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = 3.5;
   ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6;
-  ctx.beginPath();
-  ctx.ellipse(ex, ey, 30, 23, -0.1, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.ellipse(ex, ey, 30, 23, -0.1, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
-  // Tube — curves up from left side of mask
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 6; ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(ex - 26, ey - 8);
   ctx.quadraticCurveTo(ex - 48, ey - 60, ex - 38, ey - 100);
   ctx.stroke();
-  // Mouthpiece tip
   ctx.fillStyle = '#ff9800';
   ctx.beginPath(); ctx.arc(ex - 38, ey - 103, 8, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
