@@ -115,7 +115,7 @@ html, body {
 .canvas-wrap {
   position: relative; width: 100%; touch-action: none;
 }
-#fishCanvas, #outlineCanvas {
+#fishCanvas, #outlineCanvas, #accessoryCanvas {
   display: block; width: 100%; height: auto;
 }
 #outlineCanvas, #accessoryCanvas {
