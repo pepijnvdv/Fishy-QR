@@ -543,7 +543,11 @@ function showToast(msg, duration = 2800) {
 }
 
 // ── Send to server ─────────────────────────────────────
+let hasSent = false;
+
 document.getElementById('sendBtn').addEventListener('click', async () => {
+  if (hasSent) return; // already sent this session
+
   const btn = document.getElementById('sendBtn');
   btn.disabled = true;
   btn.textContent = '⏳ Sending…';
@@ -571,18 +575,22 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
     });
     const json = await res.json();
     if (res.ok && json.success) {
-      showToast('🌊 Your fish is swimming! 🐟');
+      hasSent = true;
+      btn.disabled = true;
+      btn.innerHTML = '✅ Vis verstuurd!';
+      btn.style.opacity = '0.6';
+      btn.style.cursor  = 'not-allowed';
+      showToast('🌊 Jouw vis zwemt nu in de oceaan! 🐟');
     } else {
       showToast('❌ Something went wrong.');
+      btn.disabled = false;
+      btn.innerHTML = '<span class="send-icon">🌊</span> Send to Ocean!';
     }
   } catch (err) {
     showToast('❌ Could not reach the server.');
     console.error(err);
-  } finally {
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="send-icon">🌊</span> Send to Ocean!';
-    }, 2000);
+    btn.disabled = false;
+    btn.innerHTML = '<span class="send-icon">🌊</span> Send to Ocean!';
   }
 });
 
